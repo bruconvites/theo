@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aniversário do Théo - 1 ano</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0b2a5b;font-family:Arial,Helvetica,sans-serif;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+
+  .screen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;opacity:0;transition:opacity .35s ease}
+  .screen.active{display:flex}
+  .screen.show{opacity:1}
+
+  /* Fundo desfocado para preencher laterais em telas largas */
+  .bg{position:absolute;inset:-20px;background-size:cover;background-position:center;filter:blur(24px) brightness(.9);transform:scale(1.1)}
+
+  /* Palco com proporção do convite (941x1672) */
+  .stage{position:relative;width:min(100vw,calc(100vh * 941 / 1672));aspect-ratio:941/1672;max-height:100vh}
+  .stage img{position:absolute;inset:0;width:100%;height:100%;display:block;-webkit-user-drag:none;pointer-events:none}
+
+  .hit{position:absolute;display:block;background:transparent;border:0;outline:0;cursor:pointer;border-radius:18px}
+  .hit:focus-visible{outline:3px solid rgba(255,255,255,.9)}
+
+  .clickable-screen{cursor:pointer}
+
+  /* Vídeo */
+  #screen-video{background:#000}
+  #video{width:100%;height:100%;object-fit:contain;background:#000}
+
+  #skip{
+    position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);
+    padding:7px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.35);
+    background:rgba(0,0,0,.28);color:rgba(255,255,255,.8);
+    font-size:11px;letter-spacing:1.6px;font-weight:600;text-transform:uppercase;cursor:pointer;
+    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+    opacity:0;pointer-events:none;transition:opacity .4s ease,background .2s;z-index:50
+  }
+  #skip.visible{opacity:1;pointer-events:auto}
+  #skip:hover{background:rgba(0,0,0,.5);color:#fff}
+
+  /* Efeito de ossinhos e patinhas */
+  .fx{position:fixed;left:0;top:0;pointer-events:none;z-index:9999;will-change:transform,opacity}
+  .fx svg{display:block;width:100%;height:100%;overflow:visible}
+  .fx.bone svg{filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 5px rgba(120,190,255,.9))}
+  .fx.paw svg{filter:drop-shadow(0 0 2px rgba(255,255,255,.9)) drop-shadow(0 0 6px rgba(90,160,255,.95))}
+</style>
+</head>
+<body>
+
+<!-- 1. Capa -->
+<div class="screen clickable-screen" id="screen-cover" aria-label="Toque para começar">
+  <div class="bg" style="background-image:url('primeira.jpg')"></div>
+  <div class="stage"><img src="primeira.jpg" alt="Convite de aniversário do Théo"></div>
+</div>
+
+<!-- 2. Vídeo -->
+<div class="screen" id="screen-video">
+  <video id="video" src="video.mp4" playsinline webkit-playsinline preload="auto"></video>
+  <button id="skip" type="button">PULAR INTRODUÇÃO</button>
+</div>
+
+<!-- 3. Convite interativo -->
+<div class="screen" id="screen-invite">
+  <div class="bg" style="background-image:url('interativo.jpg')"></div>
+  <div class="stage">
+    <img src="interativo.jpg" alt="Convite interativo do Théo">
+    <!-- Confirme sua presença -->
+    <a class="hit" id="btn-rsvp" aria-label="Confirme sua presença"
+       href="https://wa.me/5521979192619?text=Ol%C3%A1!%0AQuero%20confirmar%20presen%C3%A7a%20no%20anivers%C3%A1rio%20do%20Th%C3%A9o!%0A%0ASeremos%3A%0A(___)%20ADULTOS%0ANomes%3A%0A%0A(___)%20CRIAN%C3%87AS%20%0ANomes%20e%20idades%3A%0A"
+       style="left:9%;top:75.5%;width:26.5%;height:16%"></a>
+    <!-- Dicas de presente -->
+    <button class="hit" id="btn-gifts" type="button" aria-label="Dicas de presente"
+       style="left:37%;top:75.5%;width:26%;height:16%"></button>
+    <!-- Veja a localização -->
+    <a class="hit" id="btn-map" aria-label="Veja a localização"
+       href="https://maps.app.goo.gl/mNbuvdYSftkGMALNA"
+       style="left:64.5%;top:75.5%;width:27%;height:16%"></a>
+    <!-- Voltar ao convite (reinicia pela capa) -->
+    <button class="hit" id="btn-back-cover" type="button" aria-label="Voltar ao convite"
+       style="left:38.5%;top:92.3%;width:23%;height:6.3%"></button>
+  </div>
+</div>
+
+<!-- 4. Sugestões de presente -->
+<div class="screen" id="screen-gifts">
+  <div class="bg" style="background-image:url('presentes.jpg')"></div>
+  <div class="stage">
+    <img src="presentes.jpg" alt="Sugestões de presente">
+    <button class="hit" id="btn-back" type="button" aria-label="Voltar ao convite"
+       style="left:33%;top:86.5%;width:34%;height:10%"></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var screens = {
+    cover:  document.getElementById('screen-cover'),
+    video:  document.getElementById('screen-video'),
+    invite: document.getElementById('screen-invite'),
+    gifts:  document.getElementById('screen-gifts')
+  };
+  var video = document.getElementById('video');
+  var skip  = document.getElementById('skip');
+  var current = null;
+  var introDone = false;
+
+  /* Pré-carrega imagens */
+  ['primeira.jpg','interativo.jpg','presentes.jpg'].forEach(function(src){
+    var i = new Image(); i.src = src;
+  });
+
+  function show(name){
+    Object.keys(screens).forEach(function(k){
+      var el = screens[k];
+      if(k === name){
+        el.classList.add('active');
+        void el.offsetWidth;
+        el.classList.add('show');
+      } else {
+        el.classList.remove('show');
+        el.classList.remove('active');
+      }
+    });
+    current = name;
+  }
+
+  /* ---------- Vídeo ---------- */
+  function startVideo(){
+    introDone = false;
+    show('video');
+    skip.classList.remove('visible');
+    video.currentTime = 0;
+    var p = video.play();
+    if(p && p.catch){
+      p.catch(function(){
+        /* Se o navegador bloquear o som, tenta sem áudio */
+        video.muted = true;
+        video.play().catch(function(){ finishIntro(); });
+      });
+    }
+    setTimeout(function(){ if(current === 'video') skip.classList.add('visible'); }, 600);
+  }
+
+  function finishIntro(){
+    if(introDone) return;
+    introDone = true;
+    video.pause();
+    skip.classList.remove('visible');
+    show('invite');
+  }
+
+  video.addEventListener('ended', finishIntro);
+  video.addEventListener('error', finishIntro);
+  skip.addEventListener('click', function(e){ e.stopPropagation(); finishIntro(); });
+
+  /* ---------- Navegação ---------- */
+  screens.cover.addEventListener('click', startVideo);
+
+  document.getElementById('btn-gifts').addEventListener('click', function(){ show('gifts'); });
+  document.getElementById('btn-back').addEventListener('click', function(){ show('invite'); });
+  document.getElementById('btn-back-cover').addEventListener('click', function(){ show('cover'); });
+
+  /* Links externos: pequena pausa para o efeito aparecer */
+  ['btn-rsvp','btn-map'].forEach(function(id){
+    var a = document.getElementById(id);
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      var url = a.href;
+      setTimeout(function(){ window.location.href = url; }, 450);
+    });
+  });
+
+  /* ---------- Efeito de ossinhos e patinhas ---------- */
+  var BONE = '<svg viewBox="0 0 24 12"><g fill="#fff" stroke="#9fcbff" stroke-width=".5">' +
+             '<rect x="5" y="3.5" width="14" height="5" rx="2"/>' +
+             '<circle cx="4.5" cy="3.5" r="3"/><circle cx="4.5" cy="8.5" r="3"/>' +
+             '<circle cx="19.5" cy="3.5" r="3"/><circle cx="19.5" cy="8.5" r="3"/></g></svg>';
+  var PAW  = '<svg viewBox="0 0 24 24"><g fill="#2f7bff">' +
+             '<ellipse cx="12" cy="16" rx="5.8" ry="4.6"/>' +
+             '<circle cx="4.8" cy="11" r="2.4"/><circle cx="9.2" cy="6.4" r="2.6"/>' +
+             '<circle cx="14.8" cy="6.4" r="2.6"/><circle cx="19.2" cy="11" r="2.4"/></g></svg>';
+
+  function rand(a,b){ return a + Math.random()*(b-a); }
+
+  function burst(x,y){
+    var count = 9;
+    for(var i=0;i<count;i++){
+      var isBone = i % 2 === 0;
+      var el = document.createElement('div');
+      el.className = 'fx ' + (isBone ? 'bone' : 'paw');
+      var w = isBone ? rand(15,22) : rand(13,19);
+      var h = isBone ? w/2 : w;
+      el.style.width = w + 'px';
+      el.style.height = h + 'px';
+      el.innerHTML = isBone ? BONE : PAW;
+      document.body.appendChild(el);
+
+      var angle = (Math.PI*2) * (i/count) + rand(-.35,.35);
+      var dist  = rand(36,92);
+      var dx = Math.cos(angle)*dist;
+      var dy = Math.sin(angle)*dist - rand(8,26); /* sobe levemente */
+      var rot0 = rand(-40,40), rot1 = rot0 + rand(-90,90);
+      var x0 = x - w/2, y0 = y - h/2;
+      var dur = rand(750,1150);
+
+      var anim = el.animate([
+        { transform:'translate('+x0+'px,'+y0+'px) scale(.2) rotate('+rot0+'deg)', opacity:0 },
+        { transform:'translate('+(x0+dx*.45)+'px,'+(y0+dy*.45)+'px) scale(1.1) rotate('+((rot0+rot1)/2)+'deg)', opacity:1, offset:.3 },
+        { transform:'translate('+(x0+dx)+'px,'+(y0+dy+14)+'px) scale(.75) rotate('+rot1+'deg)', opacity:0 }
+      ], { duration:dur, easing:'cubic-bezier(.2,.7,.3,1)', fill:'forwards' });
+      anim.onfinish = (function(node){ return function(){ node.remove(); }; })(el);
+    }
+  }
+
+  /* Captura em qualquer ponto da tela, em qualquer página (inclusive no vídeo) */
+  document.addEventListener('pointerdown', function(e){ burst(e.clientX, e.clientY); }, true);
+
+  /* Início */
+  show('cover');
+})();
+</script>
+</body>
+</html>
